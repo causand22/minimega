@@ -949,10 +949,8 @@ func (vm *KvmVM) Hotplug(f, version, serial string) error {
 	case "", "1.1":
 		version = "1.1"
 		bus = "usb-bus.0"
-		bus = "xhci.0"
 	case "2.0":
 		bus = "ehci.0"
-		bus = "xhci.0"
 	case "3.0":
 		bus = "xhci.0"
 	default:
@@ -1159,14 +1157,13 @@ func (vm VMConfig) qemuArgs(id int, vmPath string) []string {
 	args = append(args, "clock=vm,base=utc")
 
 	// for USB 1.0, creates bus named usb-bus.0
-	// args = append(args, "-usb")
+	args = append(args, "-usb")
 	// for USB 2.0, creates bus named ehci.0
-	// args = append(args, "-device", "usb-ehci,id=ehci")
+	args = append(args, "-device", "usb-ehci,id=ehci")
 	// for USB 3.0, creates bus named xhci.0
 	args = append(args, "-device", "qemu-xhci,id=xhci")
 	// this allows absolute pointers in vnc, and works great on android vms
-	// args = append(args, "-device", "usb-tablet,bus=usb-bus.0")
-	args = append(args, "-device", "usb-tablet,bus=xhci.0")
+	args = append(args, "-device", "usb-tablet,bus=usb-bus.0")
 	// this is non-virtio serial ports
 	// for virtio-serial, look below near the net code
 	for i := uint64(0); i < vm.SerialPorts; i++ {
