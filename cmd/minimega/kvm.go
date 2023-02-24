@@ -1164,7 +1164,7 @@ func (vm VMConfig) qemuArgs(id int, vmPath string) []string {
 	// add a ccid bus
 	args = append(args, "-device", "usb-ccid")
 	// add passthru smartcard 
-	args = append(args, "-device", "ccid-card-passthru")
+	args = append(args, "-device", "ccid-card-emulated")
 
 	// this is non-virtio serial ports
 	// for virtio-serial, look below near the net code
