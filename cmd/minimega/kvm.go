@@ -1165,6 +1165,11 @@ func (vm VMConfig) qemuArgs(id int, vmPath string) []string {
 	// this allows absolute pointers in vnc, and works great on android vms
 	args = append(args, "-device", "usb-tablet,bus=usb-bus.0")
 
+	// add a ccid bus
+	args = append(args, "-device", "usb-ccid")
+	// add passthru smartcard 
+	args = append(args, "-device", "ccid-card-emulated")
+
 	// this is non-virtio serial ports
 	// for virtio-serial, look below near the net code
 	for i := uint64(0); i < vm.SerialPorts; i++ {
