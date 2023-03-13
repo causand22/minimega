@@ -204,12 +204,18 @@ type vmHotplug struct {
 	Version string
 }
 
+type vmSmartcard struct {
+	Type string 
+	Options string 
+}
+
 type KvmVM struct {
 	*BaseVM   // embed
 	KVMConfig // embed
 
 	// Internal variables
 	hotplug map[int]vmHotplug
+	smartcard map[int]vmSmartcard
 
 	q qmp.Conn // qmp connection for this vm
 
@@ -257,6 +263,7 @@ func NewKVM(name, namespace string, config VMConfig) (*KvmVM, error) {
 	vm.KVMConfig = config.KVMConfig.Copy() // deep-copy configured fields
 
 	vm.hotplug = make(map[int]vmHotplug)
+	vm.smartcard = make(map[int]vmSmartcard)
 
 	return vm, nil
 }
@@ -943,6 +950,96 @@ func (vm *KvmVM) AddNIC(nic NetConfig) error {
 	return nil
 }
 
+func (vm *KvmVM) Smartcard(options string) error {
+	var version string
+	if options != "" {
+		version = "emulated"
+	} else {
+		version = "physical"
+	}
+
+
+	vm.lock.Lock()
+	defer vm.lock.Unlock()
+
+	// generate an id by adding 1 to the highest in the list for the
+	// hotplug devices, 0 if it's empty
+	id := 0
+	for k := range vm.smartcard {
+		if k >= id {
+			id = k + 1
+		}
+	}
+
+	sid := fmt.Sprintf("smartcard%v", id)
+	log.Debugln("smartcard generated id:", sid)
+
+	r, err := vm.q.SmartcardAdd(sid, options)
+	if err != nil {
+		return err
+	}
+
+	log.Debugln("smartcard device add response:", r)
+	vm.smartcard[id] = vmSmartcard{version, options}
+
+	return nil
+}
+func (vm *KvmVM) SmartcardRemoveAll() error {
+	vm.lock.Lock()
+	defer vm.lock.Unlock()
+
+	if len(vm.smartcard) == 0 {
+		return errors.New("no smartcard devices to remove")
+	}
+
+	for k := range vm.smartcard {
+		if err := vm.smartcardRemove(k); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (vm *KvmVM) SmartcardRemove(id int) error {
+	vm.lock.Lock()
+	defer vm.lock.Unlock()
+
+	return vm.smartcardRemove(id)
+}
+func (vm *KvmVM) smartcardRemove(id int) error {
+
+	hid := fmt.Sprintf("smartcard%v", id)
+	log.Debugln("smartcard id:", hid)
+	if _, ok := vm.smartcard[id]; !ok {
+		return errors.New("no such smartcard device")
+	}
+
+	resp, err := vm.q.USBDeviceDel(hid)
+	if err != nil {
+		return err
+	}
+
+	log.Debugln("smartcard device del response:", resp)
+
+
+	delete(vm.smartcard, id)
+	return nil
+
+}
+// HotplugInfo returns a deep copy of the VM's hotplug info
+func (vm *KvmVM) SmartcardInfo() map[int]vmSmartcard {
+	vm.lock.Lock()
+	defer vm.lock.Unlock()
+
+	res := map[int]vmSmartcard{}
+
+	for k, v := range vm.smartcard {
+		res[k] = vmSmartcard{v.Type, v.Options}
+	}
+
+	return res
+}
 func (vm *KvmVM) Hotplug(f, version, serial string) error {
 	var bus string
 	switch version {
@@ -1167,8 +1264,6 @@ func (vm VMConfig) qemuArgs(id int, vmPath string) []string {
 
 	// add a ccid bus
 	args = append(args, "-device", "usb-ccid")
-	// add passthru smartcard 
-	args = append(args, "-device", "ccid-card-emulated")
 
 	// this is non-virtio serial ports
 	// for virtio-serial, look below near the net code
