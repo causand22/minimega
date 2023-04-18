@@ -213,7 +213,7 @@ type vmHotplug struct {
 }
 
 type vmSmartcard struct {
-	Options string 
+	Options string
 }
 
 type KvmVM struct {
@@ -221,7 +221,7 @@ type KvmVM struct {
 	KVMConfig // embed
 
 	// Internal variables
-	hotplug map[int]vmHotplug
+	hotplug   map[int]vmHotplug
 	smartcard map[int]vmSmartcard
 
 	q qmp.Conn // qmp connection for this vm
@@ -1111,7 +1111,7 @@ func (vm *KvmVM) Smartcard(options string) error {
 		return err
 	}
 
-	log.Debugln("smartcard device add response:", r)
+	log.Debugln("smartcard add response:", r)
 	vm.smartcard[id] = vmSmartcard{options}
 
 	return nil
@@ -1121,7 +1121,7 @@ func (vm *KvmVM) SmartcardRemoveAll() error {
 	defer vm.lock.Unlock()
 
 	if len(vm.smartcard) == 0 {
-		return errors.New("no smartcard devices to remove")
+		return errors.New("no smartcard to remove")
 	}
 
 	for k := range vm.smartcard {
@@ -1139,12 +1139,13 @@ func (vm *KvmVM) SmartcardRemove(id int) error {
 
 	return vm.smartcardRemove(id)
 }
+
 func (vm *KvmVM) smartcardRemove(id int) error {
 
 	hid := fmt.Sprintf("smartcard%v", id)
 	log.Debugln("smartcard id:", hid)
 	if _, ok := vm.smartcard[id]; !ok {
-		return errors.New("no such smartcard device")
+		return errors.New("no such smartcard")
 	}
 
 	resp, err := vm.q.USBDeviceDel(hid)
@@ -1152,14 +1153,14 @@ func (vm *KvmVM) smartcardRemove(id int) error {
 		return err
 	}
 
-	log.Debugln("smartcard device del response:", resp)
-
+	log.Debugln("smartcard del response:", resp)
 
 	delete(vm.smartcard, id)
 	return nil
 
 }
-// HotplugInfo returns a deep copy of the VM's hotplug info
+
+// SmartcardInfo returns a deep copy of the VM's smartcard info
 func (vm *KvmVM) SmartcardInfo() map[int]vmSmartcard {
 	vm.lock.Lock()
 	defer vm.lock.Unlock()
@@ -1172,6 +1173,7 @@ func (vm *KvmVM) SmartcardInfo() map[int]vmSmartcard {
 
 	return res
 }
+
 func (vm *KvmVM) Hotplug(f, version, serial string) error {
 	var bus string
 	useXHCI := vm.UsbUseXHCI
