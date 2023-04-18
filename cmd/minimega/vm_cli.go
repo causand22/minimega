@@ -953,7 +953,7 @@ func cliVMSmartcard(ns *Namespace, c *minicli.Command, resp *minicli.Response) e
 		})
 	}
 
-	resp.Header = []string{"name", "id", "type", "options"}
+	resp.Header = []string{"name", "id", "options"}
 
 	// synchronizes appends to resp.Tabular
 	var mu sync.Mutex
@@ -972,7 +972,7 @@ func cliVMSmartcard(ns *Namespace, c *minicli.Command, resp *minicli.Response) e
 
 		for k, v := range res {
 			resp.Tabular = append(resp.Tabular, []string{
-				name, strconv.Itoa(k), v.Type, v.Options,
+				name, strconv.Itoa(k), v.Options,
 			})
 		}
 

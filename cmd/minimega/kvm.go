@@ -205,7 +205,6 @@ type vmHotplug struct {
 }
 
 type vmSmartcard struct {
-	Type string 
 	Options string 
 }
 
@@ -951,19 +950,11 @@ func (vm *KvmVM) AddNIC(nic NetConfig) error {
 }
 
 func (vm *KvmVM) Smartcard(options string) error {
-	var version string
-	if options != "" {
-		version = "emulated"
-	} else {
-		version = "physical"
-	}
-
-
 	vm.lock.Lock()
 	defer vm.lock.Unlock()
 
 	// generate an id by adding 1 to the highest in the list for the
-	// hotplug devices, 0 if it's empty
+	// smartcard devices, 0 if it's empty
 	id := 0
 	for k := range vm.smartcard {
 		if k >= id {
@@ -980,7 +971,7 @@ func (vm *KvmVM) Smartcard(options string) error {
 	}
 
 	log.Debugln("smartcard device add response:", r)
-	vm.smartcard[id] = vmSmartcard{version, options}
+	vm.smartcard[id] = vmSmartcard{options}
 
 	return nil
 }
@@ -1035,7 +1026,7 @@ func (vm *KvmVM) SmartcardInfo() map[int]vmSmartcard {
 	res := map[int]vmSmartcard{}
 
 	for k, v := range vm.smartcard {
-		res[k] = vmSmartcard{v.Type, v.Options}
+		res[k] = vmSmartcard{v.Options}
 	}
 
 	return res
