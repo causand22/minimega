@@ -214,6 +214,7 @@ type vmHotplug struct {
 
 type vmSmartcard struct {
 	Options string
+	Attached bool
 }
 
 type KvmVM struct {
@@ -222,7 +223,8 @@ type KvmVM struct {
 
 	// Internal variables
 	hotplug   map[int]vmHotplug
-	smartcard map[int]vmSmartcard
+	smartcard vmSmartcard
+	ccid_connected bool
 
 	q qmp.Conn // qmp connection for this vm
 
@@ -342,7 +344,6 @@ func NewKVM(name, namespace string, config VMConfig) (*KvmVM, error) {
 	vm.KVMConfig = config.KVMConfig.Copy() // deep-copy configured fields
 
 	vm.hotplug = make(map[int]vmHotplug)
-	vm.smartcard = make(map[int]vmSmartcard)
 
 	return vm, nil
 }
@@ -1090,29 +1091,27 @@ func (vm *KvmVM) AddNIC(nic NetConfig) error {
 	return nil
 }
 
-func (vm *KvmVM) Smartcard(options string) error {
+func (vm *KvmVM) Smartcard(smartcard_path string) error {
 	vm.lock.Lock()
 	defer vm.lock.Unlock()
 
-	// generate an id by adding 1 to the highest in the list for the
-	// smartcard devices, 0 if it's empty
-	id := 0
-	for k := range vm.smartcard {
-		if k >= id {
-			id = k + 1
+	if !vm.ccid_connected {
+		r_ccid, err_ccid := vm.q.CCIDAdd()
+		if err_ccid != nil {
+			return err_ccid 
 		}
+		log.Debugln("ccid add response:", r_ccid)
+		vm.ccid_connected = true
 	}
 
-	sid := fmt.Sprintf("smartcard%v", id)
-	log.Debugln("smartcard generated id:", sid)
 
-	r, err := vm.q.SmartcardAdd(sid, options)
+	r, err := vm.q.SmartcardAdd("smartcard0", smartcard_path)
 	if err != nil {
 		return err
 	}
 
 	log.Debugln("smartcard add response:", r)
-	vm.smartcard[id] = vmSmartcard{options}
+	vm.smartcard = vmSmartcard{smartcard_path, true}
 
 	return nil
 }
@@ -1120,42 +1119,33 @@ func (vm *KvmVM) SmartcardRemoveAll() error {
 	vm.lock.Lock()
 	defer vm.lock.Unlock()
 
-	if len(vm.smartcard) == 0 {
-		return errors.New("no smartcard to remove")
-	}
+	err := vm.smartcardRemove()
 
-	for k := range vm.smartcard {
-		if err := vm.smartcardRemove(k); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return err
 }
 
-func (vm *KvmVM) SmartcardRemove(id int) error {
+func (vm *KvmVM) SmartcardRemove() error {
 	vm.lock.Lock()
 	defer vm.lock.Unlock()
 
-	return vm.smartcardRemove(id)
+	return vm.smartcardRemove()
 }
 
-func (vm *KvmVM) smartcardRemove(id int) error {
+func (vm *KvmVM) smartcardRemove() error {
 
-	hid := fmt.Sprintf("smartcard%v", id)
-	log.Debugln("smartcard id:", hid)
-	if _, ok := vm.smartcard[id]; !ok {
-		return errors.New("no such smartcard")
+	if !vm.smartcard.Attached {
+		return errors.New("No attached smartcard")
 	}
 
-	resp, err := vm.q.USBDeviceDel(hid)
+	resp, err := vm.q.SmartcardRemove("smartcard0")
 	if err != nil {
 		return err
 	}
 
 	log.Debugln("smartcard del response:", resp)
 
-	delete(vm.smartcard, id)
+	vm.smartcard.Attached = false 
+
 	return nil
 
 }
@@ -1167,8 +1157,8 @@ func (vm *KvmVM) SmartcardInfo() map[int]vmSmartcard {
 
 	res := map[int]vmSmartcard{}
 
-	for k, v := range vm.smartcard {
-		res[k] = vmSmartcard{v.Options}
+	if vm.smartcard.Attached {
+		res[0] = vmSmartcard{vm.smartcard.Options, vm.smartcard.Attached}
 	}
 
 	return res
@@ -1405,9 +1395,6 @@ func (vm VMConfig) qemuArgs(id int, vmPath string) []string {
 	}
 	// this allows absolute pointers in vnc, and works great on android vms
 	args = append(args, "-device", "usb-tablet,bus=usb-bus.0")
-
-	// add a ccid bus
-	args = append(args, "-device", "usb-ccid")
 
 	// this is non-virtio serial ports
 	// for virtio-serial, look below near the net code

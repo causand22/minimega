@@ -458,14 +458,29 @@ func (q *Conn) USBDeviceAdd(id, bus, serial string) (string, error) {
 	return resp, err
 }
 
-func (q *Conn) SmartcardAdd(id, options string) (string, error) {
+func (q *Conn) CCIDAdd() (string, error) {
+	if !q.ready {
+		return "", ERR_READY
+	}
+
+	arg := fmt.Sprintf("device_add usb-ccid")
+
+	log.Debugln("sending qmp command: ", arg)
+	resp, err := q.HumanMonitorCommand(arg)
+	return resp, err 
+}
+
+func (q *Conn) SmartcardAdd(id, smartcard_path string) (string, error) {
 	if !q.ready {
 		return "", ERR_READY
 	}
 	var arg string 
 
-	if options != "" {
-		arg = fmt.Sprintf("device_add ccid-card-emulated,id=%v,%v", id, options)
+
+	default_options := fmt.Sprintf("backend=certificates,cert1=id-cert,cert2=signing-cert,cert3=encryption-cert")
+
+	if smartcard_path != "" {
+		arg = fmt.Sprintf("device_add ccid-card-emulated,id=%v,%v,db=sql:%v", id, default_options, smartcard_path)
 	} else {
 		arg = fmt.Sprintf("device_add ccid-card-emulated,id=%v", id)
 	}

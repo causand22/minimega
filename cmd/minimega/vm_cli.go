@@ -246,8 +246,8 @@ Fill this in later
 		`,
 		Patterns: []string{
 			"vm smartcard",
-			"vm smartcard <add,> <vm target> [options]",
-			"vm smartcard <remove,> <vm target> <card id or all>",
+			"vm smartcard <add,> <vm target> [smartcard_path]",
+			"vm smartcard <remove,> <vm target> [all]",
 		},
 		Call: wrapVMTargetCLI(cliVMSmartcard),
 		Suggest: wrapVMSuggest(VM_ANY_STATE, true),
@@ -919,22 +919,16 @@ func cliVMSmartcard(ns *Namespace, c *minicli.Command, resp *minicli.Response) e
 
 	if c.BoolArgs["add"] {
 
-		options := c.StringArgs["options"]
+		smartcard_path := c.StringArgs["smartcard_path"]
 
 		return ns.VMs.Apply(target, func(vm VM, wild bool) (bool, error) {
 			if kvm, ok := vm.(*KvmVM); ok {
-				return true, kvm.Smartcard(options)
+				return true, kvm.Smartcard(smartcard_path)
 			}
 
 			return false, nil
 		})
 	} else if c.BoolArgs["remove"] {
-		card := c.StringArgs["card"]
-
-		id, err := strconv.Atoi(card)
-		if err != nil && card != Wildcard {
-			return fmt.Errorf("invalid card: `%v`", card)
-		}
 
 		return ns.VMs.Apply(target, func(vm VM, wild bool) (bool, error) {
 			kvm, ok := vm.(*KvmVM)
@@ -942,16 +936,16 @@ func cliVMSmartcard(ns *Namespace, c *minicli.Command, resp *minicli.Response) e
 				return false, nil
 			}
 
-			if card == Wildcard {
+			if c.BoolArgs["all"] {
 				err := kvm.SmartcardRemoveAll()
 				if wild && err != nil && err.Error() == "no smartcard devices to remove" {
 					// suppress error if more than one target
 					err = nil
 				}
 				return true, err
-			}
+			} 
 
-			err := kvm.SmartcardRemove(id)
+			err := kvm.SmartcardRemove()
 			if wild && err != nil && err.Error() == "no such smartcard device" {
 				// suppress error if more than one target
 				err = nil
