@@ -242,7 +242,12 @@ See "vm start" for a full description of allowable targets.`,
 	{ // vm smartcard
 		HelpShort: "add and remove smartcard devices",
 		HelpLong: `
-Fill this in later
+Add and remove a smartcard to a launched VM. Only one smartcard is
+supported at a time. To add an emulated smartcard, call vm smartcard
+with the path to the emulated card:
+
+	vm smartcard add foo /cards/fake-smartcard
+
 		`,
 		Patterns: []string{
 			"vm smartcard",

@@ -1104,6 +1104,10 @@ func (vm *KvmVM) Smartcard(smartcard_path string) error {
 		vm.ccid_connected = true
 	}
 
+	if vm.smartcard.Attached {
+		return errors.New("Smartcard already attached. Please remove previous before inserting a new one.")
+	}
+
 
 	r, err := vm.q.SmartcardAdd("smartcard0", smartcard_path)
 	if err != nil {
