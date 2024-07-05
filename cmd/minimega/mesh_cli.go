@@ -100,6 +100,31 @@ You can use 'all' to send a command to all connected clients.`,
 		Call:    cliMeshageSend,
 		Suggest: wrapHostnameSuggest(false, false, true),
 	},
+	{ //mesh background
+		HelpShort: "send a background shell command to one of the connected clients",
+		HelpLong: `
+Send a background shell command to one of the connected clients. 
+
+"mesh background start" Starts a new background process on the specified node and
+returns the ID of the new process.
+
+	mesh background start kn1 /root/run.sh
+
+To get the status of all processes on a mesh machine kn1:
+
+	mesh background status kn1 
+
+
+To get the status and any output of a specific process id=13 on a mesh machine kn1:
+	
+	mesh background status kn1 13`,
+		Patterns: []string{
+			"mesh background <start,> <hostname> (command)",
+			"mesh background <status,> <hostname> [id]",
+		},
+		Call:    cliMeshageBackground,
+		Suggest: wrapHostnameSuggest(false, false, true),
+	},
 }
 
 // cli commands for meshage control
@@ -241,11 +266,60 @@ func cliMeshageSend(c *minicli.Command, respChan chan<- minicli.Responses) {
 	forward(in, respChan)
 }
 
+func cliMeshageBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
+	if c.Source == SourceMeshage {
+		err := fmt.Errorf("cannot run `%s` via meshage", c.Original)
+		respChan <- errResp(err)
+		return
+	}
+
+	if _, ok := c.BoolArgs["start"]; ok {
+		fmt.Println("Start command run!")
+		cliMeshageBackgroundStart(c, respChan)
+		return
+	}
+
+	if _, ok := c.BoolArgs["status"]; ok {
+		fmt.Println("Status command run!")
+		cliMeshageBackgroundStatus(c, respChan)
+		return
+	}
+
+	err := fmt.Errorf("invalid command provided. Please specify 'start' or 'status'")
+	respChan <- errResp(err)
+}
+
+func cliMeshageBackgroundStart(c *minicli.Command, respChan chan<- minicli.Responses) {
+	fmt.Println("Entering meshage background start")
+
+	in, err := meshageBackground(c.Subcommand, c.StringArgs["node"])
+	if err != nil {
+		respChan <- errResp(err)
+		return
+	}
+
+	// for v := range in {
+	// 	fmt.Println(v.String())
+	// 	respChan <- v
+	// }
+	forward(in, respChan)
+}
+func cliMeshageBackgroundStatus(c *minicli.Command, respChan chan<- minicli.Responses) {
+	fmt.Println("Entering meshage background status")
+
+	fmt.Println(c.StringArgs)
+	fmt.Println(c.BoolArgs)
+	fmt.Println(c.ListArgs)
+
+	respChan <- minicli.Responses{&minicli.Response{Response: "Hi!"}}
+}
+
 // cliHostnameSuggest takes a prefix and suggests hostnames based on nodes in
 // the mesh. If local is true, the local node will be included in the
 // suggestions. If direct is true, only peers of the local node will be
 // included in the suggestions.
 func cliHostnameSuggest(prefix string, local, direct, wild bool) []string {
+
 	mesh := meshageNode.Mesh()
 
 	res := []string{}

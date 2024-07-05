@@ -150,6 +150,53 @@ func meshageSnooper(m *meshage.Message) {
 	}
 }
 
+func meshageBackground(c *minicli.Command, host string) (<-chan minicli.Responses, error) {
+
+	if host == Wildcard {
+		return nil, errors.New("wildcard included amongst list of recipients")
+	}
+
+	meshageCommandLock.Lock()
+	out := make(chan minicli.Responses)
+
+	meshageID := rand.Int31()
+	meshageCmd := meshageCommand{Command: *c, TID: meshageID}
+
+	go func() {
+		defer meshageCommandLock.Unlock()
+		defer close(out)
+
+		recipients, err := meshageNode.Set([]string{host}, meshageCmd)
+		if err != nil {
+			out <- errResp(err)
+			return
+		}
+
+		log.Debug("meshage sent, waiting on %d responses", len(recipients))
+
+		var response *minicli.Response
+
+		select {
+		case resp := <-meshageResponseChan:
+			body := resp.Body.(meshageResponse)
+			if body.TID != meshageID {
+				log.Warn("invalid TID from response channel: %d", body.TID)
+			} else {
+				response = &body.Response
+			}
+		case <-time.After(6 * time.Second):
+		}
+
+		if response == nil {
+			response = &minicli.Response{Host: host, Error: "timed out"}
+		}
+
+		out <- minicli.Responses{response}
+	}()
+
+	return out, nil
+}
+
 // meshageSend sends a command to a list of hosts, returning a channel that the
 // responses will be sent to. This is non-blocking -- the channel is created
 // and then returned after a couple of sanity checks.
