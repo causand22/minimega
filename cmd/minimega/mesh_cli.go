@@ -119,8 +119,8 @@ To get the status and any output of a specific process id=13 on a mesh machine k
 	
 	mesh background status kn1 13`,
 		Patterns: []string{
-			"mesh background <start,> <hostname> (command)",
-			"mesh background <status,> <hostname> [id]",
+			"mesh background <start,> <hostname or range or all> <command>...",
+			"mesh background <status,> <hostname or range or all> [id]",
 		},
 		Call:    cliMeshageBackground,
 		Suggest: wrapHostnameSuggest(false, false, true),
@@ -267,20 +267,21 @@ func cliMeshageSend(c *minicli.Command, respChan chan<- minicli.Responses) {
 }
 
 func cliMeshageBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
-	if c.Source == SourceMeshage {
-		err := fmt.Errorf("cannot run `%s` via meshage", c.Original)
-		respChan <- errResp(err)
-		return
-	}
+	TestWrite("meshBackground cli\n")
+
+	TestWrite(fmt.Sprintf("%+v\n", c))
+	TestWrite(fmt.Sprintf("Bool args: %v\n", c.BoolArgs))
+	TestWrite(fmt.Sprintf("List args: %v\n", c.ListArgs))
+	TestWrite(fmt.Sprintf("String args: %v\n", c.StringArgs))
 
 	if _, ok := c.BoolArgs["start"]; ok {
-		fmt.Println("Start command run!")
-		cliMeshageBackgroundStart(c, respChan)
+		TestWrite("Start command run!\n")
+		cliMeshageBackgroundStart(c)
 		return
 	}
 
 	if _, ok := c.BoolArgs["status"]; ok {
-		fmt.Println("Status command run!")
+		TestWrite("Status command run!\n")
 		cliMeshageBackgroundStatus(c, respChan)
 		return
 	}
@@ -289,20 +290,10 @@ func cliMeshageBackground(c *minicli.Command, respChan chan<- minicli.Responses)
 	respChan <- errResp(err)
 }
 
-func cliMeshageBackgroundStart(c *minicli.Command, respChan chan<- minicli.Responses) {
-	fmt.Println("Entering meshage background start")
+func cliMeshageBackgroundStart(c *minicli.Command) {
+	TestWrite("Entering meshage background start\n")
 
-	in, err := meshageBackground(c.Subcommand, c.StringArgs["node"])
-	if err != nil {
-		respChan <- errResp(err)
-		return
-	}
-
-	// for v := range in {
-	// 	fmt.Println(v.String())
-	// 	respChan <- v
-	// }
-	forward(in, respChan)
+	meshageSendBackground(c.ListArgs["command"], c.StringArgs["hostname"])
 }
 func cliMeshageBackgroundStatus(c *minicli.Command, respChan chan<- minicli.Responses) {
 	fmt.Println("Entering meshage background status")
