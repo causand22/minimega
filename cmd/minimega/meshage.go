@@ -105,7 +105,7 @@ func meshageStart(host, namespace string, degree, msaTimeout uint, broadcastIP s
 func meshageMux() {
 	for {
 		m := <-meshageMessages
-		TestWrite(fmt.Sprintf("meshage handler got a meshage: %v\n", m))
+		TestWrite(fmt.Sprintf("meshage handler got a meshage at time %v: %v\n", time.Now(), m))
 		switch m.Body.(type) {
 		case meshageCommand:
 			meshageCommandChan <- m
@@ -313,7 +313,9 @@ func meshageSendBackground(command []string, hosts string) (<-chan minicli.Respo
 		}
 	}
 
+	TestWrite("Trying to get lock")
 	meshageCommandLock.Lock()
+	TestWrite("Got lock")
 	out := make(chan minicli.Responses)
 
 	meshageID := rand.Int31()
@@ -332,6 +334,7 @@ func meshageSendBackground(command []string, hosts string) (<-chan minicli.Respo
 			return
 		}
 
+		TestWrite(fmt.Sprintf("waiting on %d responses\n", len(recipients)))
 		log.Debug("meshage sent, waiting on %d responses", len(recipients))
 
 		resps := map[string]*minicli.Response{}
@@ -351,6 +354,8 @@ func meshageSendBackground(command []string, hosts string) (<-chan minicli.Respo
 			}
 		}
 
+		TestWrite("line 355")
+
 		// Fill in the responses for recipients that timed out
 		resp := minicli.Responses{}
 		for _, host := range recipients {
@@ -363,8 +368,10 @@ func meshageSendBackground(command []string, hosts string) (<-chan minicli.Respo
 				})
 			}
 		}
+		TestWrite("line 369")
 
 		out <- resp
+		TestWrite("line 374. exiting now")
 
 	}()
 
@@ -385,27 +392,22 @@ func meshageBackgroundHandler() {
 	for {
 		m := <-meshageBackgroundChan
 		go func() {
-			TestWrite("la la la la la la la la la\n")
 			mCmd := m.Body.(meshageBackground)
-			TestWrite(strings.Join(mCmd.Command, " ") + "\n")
 
 			mesh_pid := rand.Int31()
 
 			response := minicli.Response{
 				Host:     hostname,
-				Response: fmt.Sprintf("%d", mesh_pid),
+				Response: fmt.Sprintf("Process started with ID: %d", mesh_pid),
 			}
 
 			resp := meshageResponse{Response: response, TID: mCmd.TID}
 			recipient := []string{m.Source}
 
 			_, err := meshageNode.Set(recipient, resp)
-			TestWrite("git back response\n")
 			if err != nil {
 				log.Errorln(err)
 			}
-
 		}()
 	}
-
 }

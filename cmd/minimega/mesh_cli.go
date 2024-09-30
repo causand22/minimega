@@ -267,16 +267,14 @@ func cliMeshageSend(c *minicli.Command, respChan chan<- minicli.Responses) {
 }
 
 func cliMeshageBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
-	TestWrite("meshBackground cli\n")
-
-	TestWrite(fmt.Sprintf("%+v\n", c))
-	TestWrite(fmt.Sprintf("Bool args: %v\n", c.BoolArgs))
-	TestWrite(fmt.Sprintf("List args: %v\n", c.ListArgs))
-	TestWrite(fmt.Sprintf("String args: %v\n", c.StringArgs))
-
 	if _, ok := c.BoolArgs["start"]; ok {
 		TestWrite("Start command run!\n")
-		cliMeshageBackgroundStart(c)
+		in, err := meshageSendBackground(c.ListArgs["command"], c.StringArgs["hostname"])
+		if err != nil {
+			respChan <- errResp(err)
+			return
+		}
+		forward(in, respChan)
 		return
 	}
 
@@ -290,11 +288,6 @@ func cliMeshageBackground(c *minicli.Command, respChan chan<- minicli.Responses)
 	respChan <- errResp(err)
 }
 
-func cliMeshageBackgroundStart(c *minicli.Command) {
-	TestWrite("Entering meshage background start\n")
-
-	meshageSendBackground(c.ListArgs["command"], c.StringArgs["hostname"])
-}
 func cliMeshageBackgroundStatus(c *minicli.Command, respChan chan<- minicli.Responses) {
 	fmt.Println("Entering meshage background status")
 
