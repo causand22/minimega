@@ -120,7 +120,7 @@ To get the status and any output of a specific process id=13 on a mesh machine k
 	mesh background status kn1 13`,
 		Patterns: []string{
 			"mesh background <start,> <hostname or range or all> <command>...",
-			"mesh background <status,> <hostname or range or all> [id]",
+			"mesh background <status,> <hostname or range or all> [pid]",
 		},
 		Call:    cliMeshageBackground,
 		Suggest: wrapHostnameSuggest(false, false, true),
@@ -267,25 +267,24 @@ func cliMeshageSend(c *minicli.Command, respChan chan<- minicli.Responses) {
 }
 
 func cliMeshageBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
+	var meshageCmd meshageBackground
 	if _, ok := c.BoolArgs["start"]; ok {
-		TestWrite("Start command run!\n")
-		in, err := meshageSendBackground(c.ListArgs["command"], c.StringArgs["hostname"])
-		if err != nil {
-			respChan <- errResp(err)
-			return
-		}
-		forward(in, respChan)
-		return
+		meshageCmd.Command = c.ListArgs["command"]
+		meshageCmd.Status = false
 	}
-
 	if _, ok := c.BoolArgs["status"]; ok {
-		TestWrite("Status command run!\n")
-		cliMeshageBackgroundStatus(c, respChan)
+		meshageCmd.Command = c.ListArgs["command"]
+		meshageCmd.Status = true
+		meshageCmd.Command = []string{c.StringArgs["pid"]}
+	}
+	in, err := meshageSendBackground(meshageCmd, c.StringArgs["hostname"])
+	if err != nil {
+		respChan <- errResp(err)
 		return
 	}
+	forward(in, respChan)
+	return
 
-	err := fmt.Errorf("invalid command provided. Please specify 'start' or 'status'")
-	respChan <- errResp(err)
 }
 
 func cliMeshageBackgroundStatus(c *minicli.Command, respChan chan<- minicli.Responses) {

@@ -54,6 +54,7 @@ type meshageVMResponse struct {
 
 type meshageBackground struct {
 	Command []string //command to execute in the background
+	Status  bool     //flag to set if requesting status
 	TID     int32
 }
 
@@ -295,7 +296,7 @@ func meshageLaunch(host, namespace string, queued *QueuedVMs) <-chan minicli.Res
 }
 
 // meshageBackground sends a command to a list of hosts for background execution.
-func meshageSendBackground(command []string, hosts string) (<-chan minicli.Responses, error) {
+func meshageSendBackground(meshageCmd meshageBackground, hosts string) (<-chan minicli.Responses, error) {
 
 	recipients, err := ranges.SplitList(hosts)
 	if err != nil {
@@ -319,7 +320,7 @@ func meshageSendBackground(command []string, hosts string) (<-chan minicli.Respo
 	out := make(chan minicli.Responses)
 
 	meshageID := rand.Int31()
-	meshageCmd := meshageBackground{Command: command, TID: meshageID}
+	meshageCmd.TID = meshageID
 
 	TestWrite(fmt.Sprintf("attempting to start with cmd: %v to: %v\n", meshageCmd, recipients))
 
@@ -386,28 +387,4 @@ func TestWrite(s string) {
 	f, _ := os.OpenFile("/root/test.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	defer f.Close()
 	f.Write(b)
-}
-
-func meshageBackgroundHandler() {
-	for {
-		m := <-meshageBackgroundChan
-		go func() {
-			mCmd := m.Body.(meshageBackground)
-
-			mesh_pid := rand.Int31()
-
-			response := minicli.Response{
-				Host:     hostname,
-				Response: fmt.Sprintf("Process started with ID: %d", mesh_pid),
-			}
-
-			resp := meshageResponse{Response: response, TID: mCmd.TID}
-			recipient := []string{m.Source}
-
-			_, err := meshageNode.Set(recipient, resp)
-			if err != nil {
-				log.Errorln(err)
-			}
-		}()
-	}
 }
