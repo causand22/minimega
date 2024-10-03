@@ -11,7 +11,6 @@ import (
 	"math"
 	"math/rand"
 	"net"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -106,7 +105,6 @@ func meshageStart(host, namespace string, degree, msaTimeout uint, broadcastIP s
 func meshageMux() {
 	for {
 		m := <-meshageMessages
-		TestWrite(fmt.Sprintf("meshage handler got a meshage at time %v: %v\n", time.Now(), m))
 		switch m.Body.(type) {
 		case meshageCommand:
 			meshageCommandChan <- m
@@ -314,30 +312,23 @@ func meshageSendBackground(meshageCmd meshageBackground, hosts string) (<-chan m
 		}
 	}
 
-	TestWrite("Trying to get lock")
 	meshageCommandLock.Lock()
-	TestWrite("Got lock")
 	out := make(chan minicli.Responses)
 
 	meshageID := rand.Int31()
 	meshageCmd.TID = meshageID
-
-	TestWrite(fmt.Sprintf("attempting to start with cmd: %v to: %v\n", meshageCmd, recipients))
 
 	go func() {
 		defer meshageCommandLock.Unlock()
 		defer close(out)
 
 		recipients, err = meshageNode.Set(recipients, meshageCmd)
-		TestWrite("sent\n")
 		if err != nil {
 			out <- errResp(err)
 			return
 		}
 
-		TestWrite(fmt.Sprintf("waiting on %d responses\n", len(recipients)))
 		log.Debug("meshage sent, waiting on %d responses", len(recipients))
-
 		resps := map[string]*minicli.Response{}
 	recvLoop:
 		for len(resps) < len(recipients) {
@@ -355,8 +346,6 @@ func meshageSendBackground(meshageCmd meshageBackground, hosts string) (<-chan m
 			}
 		}
 
-		TestWrite("line 355")
-
 		// Fill in the responses for recipients that timed out
 		resp := minicli.Responses{}
 		for _, host := range recipients {
@@ -369,22 +358,12 @@ func meshageSendBackground(meshageCmd meshageBackground, hosts string) (<-chan m
 				})
 			}
 		}
-		TestWrite("line 369")
 
 		out <- resp
-		TestWrite("line 374. exiting now")
 
 	}()
 
 	// Build a mesh command from the command, assigning a random ID
 
 	return out, nil
-}
-
-func TestWrite(s string) {
-	b := []byte(s)
-
-	f, _ := os.OpenFile("/root/test.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	defer f.Close()
-	f.Write(b)
 }
