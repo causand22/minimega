@@ -117,10 +117,18 @@ To get the status of all processes on a mesh machine kn1:
 
 To get the status and any output of a specific process id=13 on a mesh machine kn1:
 	
-	mesh background status kn1 13`,
+	mesh background status kn1 13
+
+
+To get the history of all mesh background commands run
+
+	mesh background history all
+
+Add 'clear' to the end of the history call to clear history on a node`,
 		Patterns: []string{
 			"mesh background <start,> <hostname or range or all> <command>...",
 			"mesh background <status,> <hostname or range or all> [pid]",
+			"mesh background <history,> <hostname or range or all> [clear]",
 		},
 		Call:    cliMeshageBackground,
 		Suggest: wrapHostnameSuggest(false, false, true),
@@ -276,6 +284,12 @@ func cliMeshageBackground(c *minicli.Command, respChan chan<- minicli.Responses)
 		meshageCmd.Command = c.ListArgs["command"]
 		meshageCmd.Type = MESH_BG_STATUS
 		meshageCmd.Command = []string{c.StringArgs["pid"]}
+	}
+	if _, ok := c.BoolArgs["history"]; ok {
+		meshageCmd.Type = MESH_BG_HISTORY
+		if c.StringArgs["clear"] == "clear" {
+			meshageCmd.Command = []string{"clear"}
+		}
 	}
 	in, err := meshageSendBackground(meshageCmd, c.StringArgs["hostname"])
 	if err != nil {
