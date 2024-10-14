@@ -270,11 +270,11 @@ func cliMeshageBackground(c *minicli.Command, respChan chan<- minicli.Responses)
 	var meshageCmd meshageBackground
 	if _, ok := c.BoolArgs["start"]; ok {
 		meshageCmd.Command = c.ListArgs["command"]
-		meshageCmd.Status = false
+		meshageCmd.Type = MESH_BG_START
 	}
 	if _, ok := c.BoolArgs["status"]; ok {
 		meshageCmd.Command = c.ListArgs["command"]
-		meshageCmd.Status = true
+		meshageCmd.Type = MESH_BG_STATUS
 		meshageCmd.Command = []string{c.StringArgs["pid"]}
 	}
 	in, err := meshageSendBackground(meshageCmd, c.StringArgs["hostname"])

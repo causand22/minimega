@@ -15,6 +15,11 @@ import (
 const MAX_MESH_BACKGROUND_PROCESS = 16
 const DELETE_DONE_PROCESS_MINS = 60.0
 
+const (
+	MESH_BG_START int32 = iota
+	MESH_BG_STATUS
+)
+
 type BackgroundProcess struct {
 	PID       int32
 	Command   exec.Cmd
@@ -42,7 +47,7 @@ func (bp BackgroundProcess) ToTabular() []string {
 var (
 	backgroundProcesses       = make(map[int]*BackgroundProcess)
 	backgroundProcessesRWLock sync.RWMutex
-	backgroundProcessHistory  [20]*BackgroundProcess
+	// backgroundProcessHistory  []*BackgroundProcess
 )
 
 func meshageBackgroundHandler() {
@@ -52,12 +57,28 @@ func meshageBackgroundHandler() {
 	}
 }
 
+func meshBackgroundRespondError(errorMsg string, tid int32, dest []string) {
+
+	response := minicli.Response{
+		Host:  hostname,
+		Error: errorMsg,
+	}
+	resp := meshageResponse{Response: response, TID: tid}
+	_, err := meshageNode.Set(dest, resp)
+	if err != nil {
+		log.Errorln(err)
+	}
+	return
+}
+
 func handleMeshageBackgroundRequest(m *meshage.Message) {
 	mCmd := m.Body.(meshageBackground)
-	if mCmd.Status { //background status
+	switch mCmd.Type {
+	case MESH_BG_STATUS:
 		pid, err := getStatusPIDFromString(mCmd.Command)
 		if err != nil {
-
+			meshBackgroundRespondError("No valid status PID provided", mCmd.TID, []string{m.Source})
+			return
 		}
 		header := []string{"PID", "RUNNING", "ERROR", "TIME_START", "TIME_END", "COMMAND"}
 		status, err := getMeshBackgroundStatus(pid)
@@ -72,20 +93,12 @@ func handleMeshageBackgroundRequest(m *meshage.Message) {
 		if err != nil {
 			log.Errorln(err)
 		}
+		return
 
-	} else { //background start
+	case MESH_BG_START:
 		mesh_pid := startNewProcess(mCmd.Command)
 		if mesh_pid == -1 {
-			//no valid slots to
-			response := minicli.Response{
-				Host:  hostname,
-				Error: "Cannot start a new process. Too many processes running or waiting for clearing.",
-			}
-			resp := meshageResponse{Response: response, TID: mCmd.TID}
-			_, err := meshageNode.Set([]string{m.Source}, resp)
-			if err != nil {
-				log.Errorln(err)
-			}
+			meshBackgroundRespondError("Cannot start a new process. Too many processes running or waiting for clearing. Run `mesh background status`", mCmd.TID, []string{m.Source})
 			return
 		}
 
@@ -102,6 +115,8 @@ func handleMeshageBackgroundRequest(m *meshage.Message) {
 		if err != nil {
 			log.Errorln(err)
 		}
+	default:
+		meshBackgroundRespondError("Error: invalid mesh request provided", mCmd.TID, []string{m.Source})
 	}
 }
 

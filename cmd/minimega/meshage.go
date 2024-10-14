@@ -53,7 +53,7 @@ type meshageVMResponse struct {
 
 type meshageBackground struct {
 	Command []string //command to execute in the background
-	Status  bool     //flag to set if requesting status
+	Type    int32
 	TID     int32
 }
 
