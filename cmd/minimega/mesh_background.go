@@ -33,9 +33,9 @@ func (bp BackgroundProcess) ToTabular() []string {
 		strconv.FormatInt(int64(bp.PID), 10),
 		strconv.FormatBool(bp.Running),
 		errorsString,
-		bp.Command.String(),
 		bp.TimeStart.Format("Jan 02 15:04:05 MST"),
 		bp.TimeEnd.Format("Jan 02 15:04:05 MST"),
+		bp.Command.String(),
 	}
 }
 
@@ -76,16 +76,17 @@ func handleMeshageBackgroundRequest(m *meshage.Message) {
 	} else { //background start
 		mesh_pid := startNewProcess(mCmd.Command)
 		if mesh_pid == -1 {
+			//no valid slots to
 			response := minicli.Response{
 				Host:  hostname,
-				Error: "Cannot start a new process. Too many processes running.",
+				Error: "Cannot start a new process. Too many processes running or waiting for clearing.",
 			}
-			_, err := meshageNode.Set([]string{m.Source}, response)
+			resp := meshageResponse{Response: response, TID: mCmd.TID}
+			_, err := meshageNode.Set([]string{m.Source}, resp)
 			if err != nil {
 				log.Errorln(err)
 			}
 			return
-
 		}
 
 		msg := fmt.Sprintf("Process started with ID: %d", mesh_pid)
@@ -101,9 +102,7 @@ func handleMeshageBackgroundRequest(m *meshage.Message) {
 		if err != nil {
 			log.Errorln(err)
 		}
-
 	}
-
 }
 
 func getStatusPIDFromString(command []string) (int32, error) {
@@ -199,7 +198,6 @@ func getNextPID() int32 {
 	}
 
 	//if no spot open, delete the oldest (if over an hour)
-
 	var oldest = time.Now()
 	oldestPID := -1
 
@@ -221,7 +219,6 @@ func getNextPID() int32 {
 
 	duration := time.Since(oldest)
 	if duration.Minutes() > DELETE_DONE_PROCESS_MINS {
-
 		delete(backgroundProcesses, oldestPID)
 		return int32(oldestPID)
 	}
