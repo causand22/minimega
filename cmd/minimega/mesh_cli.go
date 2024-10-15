@@ -100,39 +100,6 @@ You can use 'all' to send a command to all connected clients.`,
 		Call:    cliMeshageSend,
 		Suggest: wrapHostnameSuggest(false, false, true),
 	},
-	{ //mesh background
-		HelpShort: "send a background shell command to one of the connected clients",
-		HelpLong: `
-Send a background shell command to one of the connected clients. 
-
-"mesh background start" Starts a new background process on the specified node and
-returns the ID of the new process.
-
-	mesh background start kn1 /root/run.sh
-
-To get the status of all processes on a mesh machine kn1:
-
-	mesh background status kn1 
-
-
-To get the status and any output of a specific process id=13 on a mesh machine kn1:
-	
-	mesh background status kn1 13
-
-
-To get the history of all mesh background commands run
-
-	mesh background history all
-
-Add 'clear' to the end of the history call to clear history on a node`,
-		Patterns: []string{
-			"mesh background <start,> <hostname or range or all> <command>...",
-			"mesh background <status,> <hostname or range or all> [pid]",
-			"mesh background <history,> <hostname or range or all> [clear]",
-		},
-		Call:    cliMeshageBackground,
-		Suggest: wrapHostnameSuggest(false, false, true),
-	},
 }
 
 // cli commands for meshage control
@@ -272,43 +239,6 @@ func cliMeshageSend(c *minicli.Command, respChan chan<- minicli.Responses) {
 	}
 
 	forward(in, respChan)
-}
-
-func cliMeshageBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
-	var meshageCmd meshageBackground
-	if _, ok := c.BoolArgs["start"]; ok {
-		meshageCmd.Command = c.ListArgs["command"]
-		meshageCmd.Type = MESH_BG_START
-	}
-	if _, ok := c.BoolArgs["status"]; ok {
-		meshageCmd.Command = c.ListArgs["command"]
-		meshageCmd.Type = MESH_BG_STATUS
-		meshageCmd.Command = []string{c.StringArgs["pid"]}
-	}
-	if _, ok := c.BoolArgs["history"]; ok {
-		meshageCmd.Type = MESH_BG_HISTORY
-		if c.StringArgs["clear"] == "clear" {
-			meshageCmd.Command = []string{"clear"}
-		}
-	}
-	in, err := meshageSendBackground(meshageCmd, c.StringArgs["hostname"])
-	if err != nil {
-		respChan <- errResp(err)
-		return
-	}
-	forward(in, respChan)
-	return
-
-}
-
-func cliMeshageBackgroundStatus(c *minicli.Command, respChan chan<- minicli.Responses) {
-	fmt.Println("Entering meshage background status")
-
-	fmt.Println(c.StringArgs)
-	fmt.Println(c.BoolArgs)
-	fmt.Println(c.ListArgs)
-
-	respChan <- minicli.Responses{&minicli.Response{Response: "Hi!"}}
 }
 
 // cliHostnameSuggest takes a prefix and suggests hostnames based on nodes in

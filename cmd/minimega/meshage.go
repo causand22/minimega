@@ -51,12 +51,6 @@ type meshageVMResponse struct {
 	TID    int32    // unique ID for command/response pair
 }
 
-type meshageBackground struct {
-	Command []string //command to execute in the background
-	Type    int32
-	TID     int32
-}
-
 var (
 	meshageNode     *meshage.Node
 	meshageMessages chan *meshage.Message
@@ -65,7 +59,6 @@ var (
 	meshageResponseChan   = make(chan *meshage.Message, 1024)
 	meshageVMLaunchChan   = make(chan *meshage.Message, 1024)
 	meshageVMResponseChan = make(chan *meshage.Message, 1024)
-	meshageBackgroundChan = make(chan *meshage.Message, 1024)
 
 	meshageTimeout = time.Duration(math.MaxInt64) // default is no timeout
 )
@@ -79,7 +72,6 @@ func init() {
 	gob.Register(miniplumber.Message{})
 	gob.Register(meshageLogMessage{})
 	gob.Register(meshageStatusMessage{})
-	gob.Register(meshageBackground{})
 }
 
 func meshageStart(host, namespace string, degree, msaTimeout uint, broadcastIP string, port int) error {
@@ -97,7 +89,6 @@ func meshageStart(host, namespace string, degree, msaTimeout uint, broadcastIP s
 	go meshageMux()
 	go meshageHandler()
 	go meshageVMLauncher()
-	go meshageBackgroundHandler()
 
 	return iomeshageStart(meshageNode)
 }
@@ -114,8 +105,6 @@ func meshageMux() {
 			meshageVMLaunchChan <- m
 		case meshageVMResponse:
 			meshageVMResponseChan <- m
-		case meshageBackground:
-			meshageBackgroundChan <- m
 		case iomeshage.Message:
 			iom.Messages <- m
 		case miniplumber.Message:
@@ -291,79 +280,4 @@ func meshageLaunch(host, namespace string, queued *QueuedVMs) <-chan minicli.Res
 	}()
 
 	return out
-}
-
-// meshageBackground sends a command to a list of hosts for background execution.
-func meshageSendBackground(meshageCmd meshageBackground, hosts string) (<-chan minicli.Responses, error) {
-
-	recipients, err := ranges.SplitList(hosts)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, r := range recipients {
-		if r == Wildcard {
-			if len(recipients) > 1 {
-				return nil, errors.New("wildcard included amongst list of recipients")
-			}
-
-			recipients = meshageNode.BroadcastRecipients()
-			break
-		}
-	}
-
-	meshageCommandLock.Lock()
-	out := make(chan minicli.Responses)
-
-	meshageID := rand.Int31()
-	meshageCmd.TID = meshageID
-
-	go func() {
-		defer meshageCommandLock.Unlock()
-		defer close(out)
-
-		recipients, err = meshageNode.Set(recipients, meshageCmd)
-		if err != nil {
-			out <- errResp(err)
-			return
-		}
-
-		log.Debug("meshage sent, waiting on %d responses", len(recipients))
-		resps := map[string]*minicli.Response{}
-	recvLoop:
-		for len(resps) < len(recipients) {
-			select {
-			case resp := <-meshageResponseChan:
-				body := resp.Body.(meshageResponse)
-				if body.TID != meshageID {
-					log.Warn("invalid TID from response channel: %d", body.TID)
-				} else {
-					resps[body.Host] = &body.Response
-				}
-			case <-time.After(meshageTimeout):
-				// Didn't hear back from any node within the timeout
-				break recvLoop
-			}
-		}
-
-		// Fill in the responses for recipients that timed out
-		resp := minicli.Responses{}
-		for _, host := range recipients {
-			if v, ok := resps[host]; ok {
-				resp = append(resp, v)
-			} else if host != hostname {
-				resp = append(resp, &minicli.Response{
-					Host:  host,
-					Error: "timed out",
-				})
-			}
-		}
-
-		out <- resp
-
-	}()
-
-	// Build a mesh command from the command, assigning a random ID
-
-	return out, nil
 }
