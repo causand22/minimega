@@ -182,7 +182,7 @@ func cliBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
 	respChan <- minicli.Responses{&minicli.Response{
 		Host:     hostname,
 		Response: fmt.Sprintf("Started background process with id %d", id),
-		Data:     id}}
+		Data:     []byte(strconv.Itoa(id))}}
 
 	go func() {
 		err := cmd.Run()
