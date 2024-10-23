@@ -116,9 +116,9 @@ type BackgroundProcess struct {
 }
 
 func (bp BackgroundProcess) ToTabular() []string {
-	errorsString := "no"
+	errorsString := ""
 	if bp.Error != nil {
-		errorsString = "yes"
+		errorsString = bp.Error.Error()
 	}
 	return []string{
 		strconv.FormatInt(int64(bp.ID), 10),
@@ -182,7 +182,7 @@ func cliBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
 	respChan <- minicli.Responses{&minicli.Response{
 		Host:     hostname,
 		Response: fmt.Sprintf("Started background process with id %d", id),
-		Data:     []byte(strconv.Itoa(id))}}
+	}}
 
 	go func() {
 		err := cmd.Run()
