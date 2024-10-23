@@ -204,22 +204,6 @@ func cliBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
 	}()
 }
 
-func addBackgroundProcess(cmd *exec.Cmd) int {
-	backgroundProcessesRWLock.Lock()
-	defer backgroundProcessesRWLock.Unlock()
-
-	bp := &BackgroundProcess{
-		ID:        backgroundProcessNextID,
-		Command:   cmd,
-		Running:   true,
-		TimeStart: time.Now(),
-	}
-	backgroundProcessNextID += 1
-	backgroundProcesses[bp.ID] = bp
-
-	return bp.ID
-}
-
 func cliBackgroundStatus(c *minicli.Command, respChan chan<- minicli.Responses) {
 	idStr := c.StringArgs["id"]
 
