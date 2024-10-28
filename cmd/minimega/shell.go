@@ -60,6 +60,28 @@ To get the status of a specific command, run
 		},
 		Call: cliBackgroundStatus,
 	},
+	{ // background output
+		HelpShort: "Get the stdout of a background command",
+		HelpLong: `
+Get the standard output of a background command.
+
+	background-output <id>`,
+		Patterns: []string{
+			"background-output <id>",
+		},
+		Call: cliBackgroundOutput,
+	},
+	{ // background error
+		HelpShort: "Get the stderr of a background command",
+		HelpLong: `
+Get the standard error of a background command.
+
+	background-error <id>`,
+		Patterns: []string{
+			"background-error <id>",
+		},
+		Call: cliBackgroundError,
+	},
 	{ //clear background-status
 		HelpShort: "Clear background-status information",
 		Patterns: []string{
@@ -113,6 +135,8 @@ type BackgroundProcess struct {
 	Error     error
 	TimeStart time.Time
 	TimeEnd   time.Time
+	Stdout    string
+	Stderr    string
 }
 
 func (bp BackgroundProcess) ToTabular() []string {
@@ -188,19 +212,15 @@ func cliBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
 		err := cmd.Run()
 
 		backgroundProcessesRWLock.Lock()
+		defer backgroundProcessesRWLock.Unlock()
+
 		backgroundProcesses[id].Running = false
 		backgroundProcesses[id].Error = err
 		backgroundProcesses[id].TimeEnd = time.Now()
-		backgroundProcessesRWLock.Unlock()
+		backgroundProcesses[id].Stdout = sOut.String()
+		backgroundProcesses[id].Stderr = sErr.String()
 
 		log.Info("command %v exited", args)
-		if out := sOut.String(); out != "" {
-			log.Info(out)
-		}
-		if err := sErr.String(); err != "" {
-			log.Info(err)
-		}
-
 	}()
 }
 
@@ -249,6 +269,78 @@ func cliBackgroundStatusAll(respChan chan<- minicli.Responses) {
 		Host:    hostname,
 		Header:  backgroundProcessTableHeader,
 		Tabular: table,
+	}
+	respChan <- minicli.Responses{resp}
+
+}
+
+func cliBackgroundOutput(c *minicli.Command, respChan chan<- minicli.Responses) {
+	idStr := c.StringArgs["id"]
+
+	if idStr == "" {
+		respChan <- errResp(fmt.Errorf("ID is a required field"))
+		return
+	}
+
+	idInt, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		respChan <- errResp(err)
+		return
+	}
+
+	backgroundProcessesRWLock.RLock()
+	defer backgroundProcessesRWLock.RUnlock()
+
+	entry, ok := backgroundProcesses[int(idInt)]
+	if !ok {
+		respChan <- errResp(fmt.Errorf("provided id does not exist in background process table"))
+		return
+	}
+
+	if entry.Running {
+		respChan <- errResp(fmt.Errorf("wait for process to finish before reading output"))
+		return
+	}
+
+	resp := &minicli.Response{
+		Response: entry.Stdout,
+		Host:     hostname,
+	}
+	respChan <- minicli.Responses{resp}
+
+}
+
+func cliBackgroundError(c *minicli.Command, respChan chan<- minicli.Responses) {
+	idStr := c.StringArgs["id"]
+
+	if idStr == "" {
+		respChan <- errResp(fmt.Errorf("ID is a required field"))
+		return
+	}
+
+	idInt, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		respChan <- errResp(err)
+		return
+	}
+
+	backgroundProcessesRWLock.RLock()
+	defer backgroundProcessesRWLock.RUnlock()
+
+	entry, ok := backgroundProcesses[int(idInt)]
+	if !ok {
+		respChan <- errResp(fmt.Errorf("provided id does not exist in background process table"))
+		return
+	}
+
+	if entry.Running {
+		respChan <- errResp(fmt.Errorf("wait for process to finish before reading output"))
+		return
+	}
+
+	resp := &minicli.Response{
+		Response: entry.Stderr,
+		Host:     hostname,
 	}
 	respChan <- minicli.Responses{resp}
 
