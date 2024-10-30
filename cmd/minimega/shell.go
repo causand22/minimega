@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os/exec"
 	"strconv"
 	"sync"
@@ -162,10 +163,17 @@ var (
 	backgroundProcessTableHeader = []string{"PID", "RUNNING", "ERROR", "TIME_START", "TIME_END", "COMMAND"}
 )
 
-func cliBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
+type BackgroundWriter struct {
+	ProcessID int
+}
 
-	var sOut bytes.Buffer
-	var sErr bytes.Buffer
+func (bw *BackgroundWriter) Write(data []byte) (n int, err error) {
+	logString := fmt.Sprintf("Background process %d: %s", bw.ProcessID, string(data))
+	log.Info(logString)
+	return len(data), nil
+}
+
+func cliBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
 
 	p, err := exec.LookPath(c.ListArgs["command"][0])
 	if err != nil {
@@ -179,18 +187,25 @@ func cliBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
 	}
 
 	cmd := &exec.Cmd{
-		Path:   p,
-		Args:   args,
-		Env:    nil,
-		Dir:    "",
-		Stdout: &sOut,
-		Stderr: &sErr,
+		Path: p,
+		Args: args,
+		Env:  nil,
+		Dir:  "",
 	}
+
+	var sOut bytes.Buffer //stdout buffer
+	var sErr bytes.Buffer //stderr buffer
 
 	backgroundProcessesRWLock.Lock()
 
+	id := backgroundProcessNextID
+
+	bgWriter := &BackgroundWriter{ProcessID: id}
+	cmd.Stdout = io.MultiWriter(&sOut, bgWriter)
+	cmd.Stderr = io.MultiWriter(&sErr, bgWriter)
+
 	bp := &BackgroundProcess{
-		ID:        backgroundProcessNextID,
+		ID:        id,
 		Command:   cmd,
 		Running:   true,
 		TimeStart: time.Now(),
@@ -199,8 +214,6 @@ func cliBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
 	backgroundProcesses[bp.ID] = bp
 
 	backgroundProcessesRWLock.Unlock()
-
-	id := bp.ID
 
 	log.Info("starting process id %v: %v", id, args)
 	respChan <- minicli.Responses{&minicli.Response{
