@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -155,12 +156,16 @@ func (bp BackgroundProcess) ToTabular() []string {
 	}
 }
 
+const (
+	backgroundProcessMaxLen = 50
+)
+
 var (
 	backgroundProcessesRWLock sync.RWMutex
 	backgroundProcesses           = make(map[int]*BackgroundProcess)
 	backgroundProcessNextID   int = 1
 
-	backgroundProcessTableHeader = []string{"PID", "RUNNING", "ERROR", "TIME_START", "TIME_END", "COMMAND"}
+	backgroundProcessTableHeader = []string{"ID", "RUNNING", "ERROR", "TIME_START", "TIME_END", "COMMAND"}
 )
 
 type BackgroundWriter struct {
@@ -174,6 +179,8 @@ func (bw *BackgroundWriter) Write(data []byte) (n int, err error) {
 }
 
 func cliBackground(c *minicli.Command, respChan chan<- minicli.Responses) {
+
+	flushOldBackgroundStatus()
 
 	p, err := exec.LookPath(c.ListArgs["command"][0])
 	if err != nil {
@@ -371,6 +378,7 @@ func cliClearBackgroundStatus(c *minicli.Command, respChan chan<- minicli.Respon
 	}
 
 	if len(keys) == len(backgroundProcesses) {
+		//free the entire map if all are not running and clear is called
 		backgroundProcesses = make(map[int]*BackgroundProcess)
 	} else {
 		for _, key := range keys {
@@ -385,4 +393,39 @@ func cliClearBackgroundStatus(c *minicli.Command, respChan chan<- minicli.Respon
 	}
 
 	respChan <- minicli.Responses{resp}
+}
+
+// flush any statuses over the max length, sorted by ending time
+func flushOldBackgroundStatus() {
+	backgroundProcessesRWLock.Lock()
+	backgroundProcessesRWLock.Unlock()
+
+	if len(backgroundProcesses) < backgroundProcessMaxLen {
+		return
+	}
+
+	var notRunningKeys []int
+	for key, entry := range backgroundProcesses {
+		if !entry.Running {
+			notRunningKeys = append(notRunningKeys, key)
+		}
+	}
+
+	sort.Slice(notRunningKeys, func(a, b int) bool {
+		a_key := notRunningKeys[a]
+		b_key := notRunningKeys[b]
+		a_entry := backgroundProcesses[a_key]
+		b_entry := backgroundProcesses[b_key]
+
+		return a_entry.TimeEnd.Before(b_entry.TimeEnd)
+	})
+
+	for _, key := range notRunningKeys {
+		if len(backgroundProcesses) <= backgroundProcessMaxLen {
+			break
+		}
+
+		delete(backgroundProcesses, key)
+	}
+
 }
