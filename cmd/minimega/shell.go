@@ -85,7 +85,7 @@ Get the standard error of a background command.
 		Call: cliBackgroundError,
 	},
 	{ //clear background-status
-		HelpShort: "Clear background-status information",
+		HelpShort: "Clear all non-running background processes from the status table",
 		Patterns: []string{
 			"clear background-status",
 		},
